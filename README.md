@@ -7,12 +7,12 @@ Currently supported:
 - Exception codes are filtered and displayed
 - Several user checks
 - Load memory map from xml file, listbox with scrollbar and fill modbus entry boxes on double click
+- Attempt to serial connection and send commands on <return> press also (not only via button)
 
 Features missing:
 
 - Display outgoing frame in TX label
 - Display received frame as well
-- Create Serial connection on <return> press also (not only via button)
 - CRC calculator
 - Save/load frames
 - Program periodically write/read operations, store result in file

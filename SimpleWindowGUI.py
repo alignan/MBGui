@@ -188,26 +188,31 @@ class SimpleWindowGUI:
         self.frame.grid()
 
         # Add the text box widget to the layout manager, stick to the East/West edges of the cell,
-        # bind to an event when press enter
+        # bind to an event when press enter to emulate the connect button, but bind also to mouse click to clear cells
         self.entry_box_port.grid(column=2, row=0, columnspan=4, sticky='EW', padx=10)
         self.entry_box_port.bind("<Button-1>", self.on_click_text_entry_box_port)
+        self.entry_box_port.bind("<Return>", self.call_on_button_connect)
         self.entry_box_parity.grid(column=2, row=1, columnspan=4, sticky='EW', padx=10)
         self.entry_box_parity.bind("<Button-1>", self.on_click_text_entry_box_parity)
+        self.entry_box_parity.bind("<Return>", self.call_on_button_connect)
         self.entry_box_baudrate.grid(column=2, row=2, columnspan=4, sticky='EW', padx=10)
         self.entry_box_baudrate.bind("<Button-1>", self.on_click_text_entry_box_baudrate)
+        self.entry_box_baudrate.bind("<Return>", self.call_on_button_connect)
         self.entry_box_stopbits.grid(column=2, row=3, columnspan=4, sticky='EW', padx=10)
         self.entry_box_stopbits.bind("<Button-1>", self.on_click_text_entry_box_stopbits)
+        self.entry_box_stopbits.bind("<Return>", self.call_on_button_connect)
         self.entry_box_bytesize.grid(column=2, row=4, columnspan=4, sticky='EW', padx=10)
         self.entry_box_bytesize.bind("<Button-1>", self.on_click_text_entry_box_bytesize)
+        self.entry_box_bytesize.bind("<Return>", self.call_on_button_connect)
 
         self.entry_box_reg.grid(column=2, row=7, columnspan=4, sticky='EW', padx=10)
-        self.entry_box_reg.bind("<Button-1>", self.on_click_text_entry_box_parity)
+        self.entry_box_reg.bind("<Return>", self.call_on_button_send)
         self.entry_box_count.grid(column=2, row=8, columnspan=4, sticky='EW', padx=10)
-        self.entry_box_count.bind("<Button-1>", self.on_click_text_entry_box_baudrate)
+        self.entry_box_count.bind("<Return>", self.call_on_button_send)
         self.entry_box_unit.grid(column=2, row=9, columnspan=4, sticky='EW', padx=10)
-        self.entry_box_unit.bind("<Button-1>", self.on_click_text_entry_box_stopbits)
+        self.entry_box_unit.bind("<Return>", self.call_on_button_send)
         self.entry_box_data.grid(column=2, row=10, columnspan=4, sticky='EW', padx=10)
-        self.entry_box_data.bind("<Button-1>", self.on_click_text_entry_box_bytesize)
+        self.entry_box_data.bind("<Return>", self.call_on_button_send)
 
         # Create a simple button bind to an event handler
         button_connect = tk.Button(self.frame, textvariable=self.button_connect_text, command=self.on_button_connect)
@@ -311,6 +316,16 @@ class SimpleWindowGUI:
             logging.basicConfig()
             log = logging.getLogger()
             log.setLevel(logging.DEBUG)
+
+    # Wrapper to call on_button_connect from triggers with associated events (like entry boxes)
+    def call_on_button_connect(self, event):
+        if not self.connected:
+            self.on_button_connect()
+
+    # Wrapper to call on_button_send from triggers
+    def call_on_button_send(self, event):
+        if self.connected:
+            self.on_button_send()
 
     # Default behaviour when pressing the CONNECT/DISCONNECT button to create a serial connection
     def on_button_connect(self):

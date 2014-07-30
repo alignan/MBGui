@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!--
+  name      : readable register name
+  address   : register base address, int
+  type      : input or holding, no uppercase
+  length    : number of register instances
+-->
+
+<mmap>
+    <reg id="1">
+        <name>REG_A</name>
+        <address>1</address>
+        <type>input</type>
+        <length>1</length>
+    </reg>
+    <reg id="2">
+        <name>REG_B</name>
+        <address>101</address>
+        <type>input</type>
+        <length>1</length>
+    </reg>
+    <reg id="3">
+        <name>REG_C</name>
+        <address>102</address>
+        <type>input</type>
+        <length>1</length>
+    </reg>
+    <reg id="4">
+        <name>REG_D</name>
+        <address>103</address>
+        <type>input</type>
+        <length>1</length>
+    </reg>
+    <reg id="5">
+        <name>REG_1</name>
+        <address>1</address>
+        <type>holding</type>
+        <length>10</length>
+    </reg>
+    <reg id="6">
+        <name>REG_2</name>
+        <address>33</address>
+        <type>holding</type>
+        <length>4</length>
+    </reg>
+    <reg id="7">
+        <name>REG_3</name>
+        <address>37</address>
+        <type>holding</type>
+        <length>1</length>
+    </reg>
+    <reg id="8">
+        <name>REG_4</name>
+        <address>38</address>
+        <type>holding</type>
+        <length>1</length>
+    </reg>
+    <reg id="9">
+        <name>REG_5</name>
+        <address>39</address>
+        <type>holding</type>
+        <length>1</length>
+    </reg>
+    <reg id="10">
+        <name>REG_6</name>
+        <address>40</address>
+        <type>holding</type>
+        <length>1</length>
+    </reg>
+</mmap>

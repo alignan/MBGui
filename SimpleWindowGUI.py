@@ -13,13 +13,21 @@ from pymodbus.pdu import ExceptionResponse
 from pymodbus.register_read_message import *
 from pymodbus.register_write_message import *
 
+# To read mmap.xml file
+import os
+import collections
+from xml.dom import minidom
+
 DEBUG_MB = 1
 
 if DEBUG_MB:
     import logging
 
+# Name of the memory map XML file
+MMAP_FILE_NAME = '\mmap.xml'
+
 # Available type of MB request types
-mb_cmd = ['cInput', 'cHolding', 'cWrite']
+mb_cmd = ['input', 'holding', 'write']
 
 # List of MB exception codes
 # Taken from http://www.kepware.com/Support_Center/SupportDocuments/KTAN90006_Modbus_Exception_Codes.pdf
@@ -96,6 +104,16 @@ class SimpleWindowGUI:
         self.cmd_type_write = tk.Radiobutton(self.frame, text="Write Register", variable=self.command_type,
                                              value=mb_cmd[2], justify="left", bg='white')
 
+        # Create a dict and list widget with the mmap content, the dictionary will be ordered,
+        # based on the order the registers are written in the mmap file
+        self.mmap_entries = collections.OrderedDict()
+        self.list_mmap = tk.Listbox(self.frame, bg='white')
+
+        # This is the scrollbar for the listbox
+        self.list_mmap_scrollbar = tk.Scrollbar(self.list_mmap, orient=tk.VERTICAL)
+        self.list_mmap.config(yscrollcommand=self.list_mmap_scrollbar.set)
+        self.list_mmap_scrollbar.config(command=self.list_mmap.yview)
+
         # Create an empty MB object, the constructor will be invoked at connection time
         self.client = "None"
 
@@ -127,6 +145,7 @@ class SimpleWindowGUI:
         self.cmd_type_holding.config(state=status)
         self.cmd_type_input.config(state=status)
         self.cmd_type_write.config(state=status)
+        self.list_mmap.config(state=status)
 
     # To avoid repeating code, status can be readonly, normal
     def toggle_conn_entries(self, status):
@@ -135,6 +154,34 @@ class SimpleWindowGUI:
         self.entry_box_baudrate.config(state=status)
         self.entry_box_bytesize.config(state=status)
         self.entry_box_stopbits.config(state=status)
+
+    def initialize_mmap(self):
+        # First check if the mmap.xml exists ON my location
+        mmap_abs_path = os.path.dirname(os.path.abspath(__file__)) + MMAP_FILE_NAME
+        if not os.path.isfile(mmap_abs_path):
+            return "No mmap.xml file found"
+
+        # Load XML file and parse
+        try:
+            mmap = minidom.parse(mmap_abs_path)
+        except:
+            return "File mmap.xml could not be parsed"
+
+        # Create a dictionary to store the entries in the following way (encode as string, not unicode):
+        # {Name : [Address, Type, Length], ...]
+        registers = mmap.getElementsByTagName('reg')
+        for entry in registers:
+            self.mmap_entries[entry.getElementsByTagName("name")[0].childNodes[0].data.encode('UTF-8')] = [
+                entry.getElementsByTagName("address")[0].childNodes[0].data.encode('UTF-8'),
+                entry.getElementsByTagName("type")[0].childNodes[0].data.encode('UTF-8'),
+                entry.getElementsByTagName("length")[0].childNodes[0].data.encode('UTF-8')
+            ]
+
+        # Now add the registers into the list
+        for key, value in self.mmap_entries.items():
+            self.list_mmap.insert(tk.END, key)
+
+        return "Memory map found, available registers below"
 
     def initialize(self):
         # Create a grid layout manager
@@ -214,8 +261,8 @@ class SimpleWindowGUI:
                                           fg="black", bg="white")
         label_command_send = tk.Label(self.frame, textvariable=self.label_command_send_text, anchor="w",
                                       fg="black", bg="grey")
-        label_command_send_hdr.grid(column=0, row=12, columnspan=1, sticky='EW')
-        label_command_send.grid(column=1, row=12, columnspan=10, sticky='EW')
+        label_command_send_hdr.grid(column=0, row=15, columnspan=1, sticky='EW')
+        label_command_send.grid(column=1, row=15, columnspan=10, sticky='EW')
         self.label_command_send_hdr_text.set(u"TX")
         self.label_command_send_text.set(u"Awaiting command")
 
@@ -224,20 +271,30 @@ class SimpleWindowGUI:
                                              fg="black", bg="white")
         label_command_receive = tk.Label(self.frame, textvariable=self.label_command_receive_text, anchor="w",
                                          fg="black", bg="grey")
-        label_command_receive_hdr.grid(column=0, row=13, columnspan=1, sticky='EW')
-        label_command_receive.grid(column=1, row=13, columnspan=10, sticky='EW')
+        label_command_receive_hdr.grid(column=0, row=16, columnspan=1, sticky='EW')
+        label_command_receive.grid(column=1, row=16, columnspan=10, sticky='EW')
         self.label_command_receive_hdr_text.set(u"RX")
         self.label_command_receive_text.set(u"Awaiting response/exception")
 
         # Empty label, as I don't know how to place emtpy rows as Tkinter ignores it...
         tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=6, columnspan=10, sticky='EW')
         tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=11, columnspan=10, sticky='EW')
+        tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=14, columnspan=10, sticky='EW')
 
         # Initialize radio buttons
         self.cmd_type_input.grid(column=8, row=7, sticky='W')
         self.cmd_type_holding.grid(column=8, row=8, sticky='W')
         self.cmd_type_write.grid(column=8, row=9, sticky='W')
         self.cmd_type_input.select()
+
+        # Initialize lists and its scrollbar, create a label for the list and bind to events
+        tk.Label(self.frame, anchor="w", bg="grey", text=self.initialize_mmap()).grid(column=0, row=12,
+                                                                                      columnspan=10,
+                                                                                      sticky='EW')
+        self.list_mmap.grid(column=0, columnspan=3, row=13, sticky='WE')
+        self.list_mmap.columnconfigure(0, weight=1)
+        self.list_mmap_scrollbar.grid(column=0, sticky='EW')
+        self.list_mmap.bind("<Double-Button-1>", self.on_double_click_list_mmap)
 
         # Print instructions on the text box
         self.entry_port.set(u"/dev/ttyUSB0")
@@ -410,6 +467,30 @@ class SimpleWindowGUI:
             self.label_command_receive_text.set(registers_result)
 
         # Print the modbus frame sent on the TX label
+
+    # This event is triggered by a double click, user selects a register from the memory map
+    # and its content is updated in the command boxes
+    def on_double_click_list_mmap(self, event):
+        if not self.connected:
+            return
+
+        # Clear previous option
+        self.entry_box_reg.delete(0, tk.END)
+        self.entry_box_count.delete(0, tk.END)
+
+        widget = event.widget
+        selection = widget.curselection()
+        value = widget.get(selection[0])
+
+        self.entry_box_reg.insert(0, self.mmap_entries[value][0])
+        self.entry_box_count.insert(0, self.mmap_entries[value][2])
+
+        # If the register is an input/holding register, also select for the user
+        if self.mmap_entries[value][1] == mb_cmd[0]:
+            self.cmd_type_input.select()
+        else:
+            self.cmd_type_holding.select()
+
 
     # The functions below are meant only for clearing the text box content on a mouse click,
     # this could be optimized into a single function, this has to be done eventually :)

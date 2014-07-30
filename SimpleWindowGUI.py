@@ -49,6 +49,7 @@ class SimpleWindowGUI:
         self.master = tk.Tk()
         self.master.title(title)
         self.frame = tk.Frame(self.master, borderwidth=5, bg='white')
+        self.master.iconbitmap(default='transparent.ico')
 
         # Create a text entry variables for the connection module
         self.entry_port = tk.StringVar()

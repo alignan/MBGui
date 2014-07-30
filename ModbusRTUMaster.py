@@ -8,6 +8,7 @@ from pymodbus.client.sync import ModbusSerialClient as ModbusClient
 # If we need to subtract from registers
 offset = 1
 
+
 # Modbus related part
 def create_port(port, baudrate, parity, stopbits, bytesize):
     client = ModbusClient(method='rtu', timeout=0.5)

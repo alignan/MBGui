@@ -8,13 +8,6 @@ __author__ = "Antonio Lignan"
 import Tkinter as tk
 import ModbusRTUMaster as MB
 
-from pymodbus.diag_message import *
-from pymodbus.file_message import *
-from pymodbus.other_message import *
-from pymodbus.mei_message import *
-
-from pymodbus.register_read_message import ReadRegistersResponseBase
-
 # The following are to process the response/exceptions from read/write operations
 from pymodbus.pdu import ExceptionResponse
 from pymodbus.register_read_message import *
@@ -96,9 +89,12 @@ class SimpleWindowGUI:
         self.command_type = tk.StringVar()
 
         # Create radio button options
-        self.cmd_type_input = tk.Radiobutton(self.frame, text="Read Input", variable=self.command_type, value=mb_cmd[0], justify="left", bg='white')
-        self.cmd_type_holding = tk.Radiobutton(self.frame, text="Read Holding", variable=self.command_type, value=mb_cmd[1], justify="left", bg='white')
-        self.cmd_type_write = tk.Radiobutton(self.frame, text="Write Register", variable=self.command_type, value=mb_cmd[2], justify="left", bg='white')
+        self.cmd_type_input = tk.Radiobutton(self.frame, text="Read Input", variable=self.command_type, value=mb_cmd[0],
+                                             justify="left", bg='white')
+        self.cmd_type_holding = tk.Radiobutton(self.frame, text="Read Holding", variable=self.command_type,
+                                               value=mb_cmd[1], justify="left", bg='white')
+        self.cmd_type_write = tk.Radiobutton(self.frame, text="Write Register", variable=self.command_type,
+                                             value=mb_cmd[2], justify="left", bg='white')
 
         # Create an empty MB object, the constructor will be invoked at connection time
         self.client = "None"
@@ -208,21 +204,26 @@ class SimpleWindowGUI:
         self.label_data_text.set(u"Data (hex, no lead '0x')")
 
         # This is the connection status label
-        label_connection = tk.Label(self.frame, textvariable=self.label_connection_text, anchor="w", fg="black", bg="grey")
+        label_connection = tk.Label(self.frame, textvariable=self.label_connection_text, anchor="w",
+                                    fg="black", bg="grey")
         label_connection.grid(column=0, row=5, columnspan=10, sticky='EW')
         self.label_connection_text.set(u"Awaiting connection!")
 
         # This is the command status label (Request sent)
-        label_command_send_hdr = tk.Label(self.frame, textvariable=self.label_command_send_hdr_text, anchor="w", fg="black", bg="white")
-        label_command_send = tk.Label(self.frame, textvariable=self.label_command_send_text, anchor="w", fg="black", bg="grey")
+        label_command_send_hdr = tk.Label(self.frame, textvariable=self.label_command_send_hdr_text, anchor="w",
+                                          fg="black", bg="white")
+        label_command_send = tk.Label(self.frame, textvariable=self.label_command_send_text, anchor="w",
+                                      fg="black", bg="grey")
         label_command_send_hdr.grid(column=0, row=12, columnspan=1, sticky='EW')
         label_command_send.grid(column=1, row=12, columnspan=10, sticky='EW')
         self.label_command_send_hdr_text.set(u"TX")
         self.label_command_send_text.set(u"Awaiting command")
 
         # This is the command status label (Receive response/exception)
-        label_command_receive_hdr = tk.Label(self.frame, textvariable=self.label_command_receive_hdr_text, anchor="w", fg="black", bg="white")
-        label_command_receive = tk.Label(self.frame, textvariable=self.label_command_receive_text, anchor="w", fg="black", bg="grey")
+        label_command_receive_hdr = tk.Label(self.frame, textvariable=self.label_command_receive_hdr_text, anchor="w",
+                                             fg="black", bg="white")
+        label_command_receive = tk.Label(self.frame, textvariable=self.label_command_receive_text, anchor="w",
+                                         fg="black", bg="grey")
         label_command_receive_hdr.grid(column=0, row=13, columnspan=1, sticky='EW')
         label_command_receive.grid(column=1, row=13, columnspan=10, sticky='EW')
         self.label_command_receive_hdr_text.set(u"RX")

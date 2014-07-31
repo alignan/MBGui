@@ -18,6 +18,9 @@ import os
 import collections
 from xml.dom import minidom
 
+# To periodically execute a request
+import time, threading
+
 DEBUG_MB = 1
 
 if DEBUG_MB:
@@ -66,6 +69,7 @@ class SimpleWindowGUI:
         self.entry_count = tk.StringVar()
         self.entry_unit = tk.StringVar()
         self.entry_data = tk.StringVar()
+        self.entry_periodic = tk.StringVar()
 
         # Create a text box widgets to store the text input into the text entry variable
         self.entry_box_port = tk.Entry(self.frame, textvariable=self.entry_port, justify="center")
@@ -78,6 +82,7 @@ class SimpleWindowGUI:
         self.entry_box_count = tk.Entry(self.frame, textvariable=self.entry_count, justify="center")
         self.entry_box_unit = tk.Entry(self.frame, textvariable=self.entry_unit, justify="center")
         self.entry_box_data = tk.Entry(self.frame, textvariable=self.entry_data, justify="center")
+        self.entry_box_periodic = tk.Entry(self.frame, textvariable=self.entry_periodic, justify="center", width=15)
 
         # Create a label tag for the serial port connection, port, parity, etc
         self.label_connection_text = tk.StringVar()
@@ -96,6 +101,7 @@ class SimpleWindowGUI:
         self.label_command_receive_hdr_text = tk.StringVar()
         self.label_command_send_text = tk.StringVar()
         self.label_command_receive_text = tk.StringVar()
+        self.button_send_command_text = tk.StringVar()
 
         # Variable to select command type using radiobutton widget
         self.command_type = tk.StringVar()
@@ -118,11 +124,20 @@ class SimpleWindowGUI:
         self.list_mmap.config(yscrollcommand=self.list_mmap_scrollbar.set)
         self.list_mmap_scrollbar.config(command=self.list_mmap.yview)
 
+        # Add a check button to enable periodically send the same command
+        self.checkbox_enabled = tk.IntVar()
+        self.checkbox_periodic_request = tk.Checkbutton(self.frame, text=u"Send request every",
+                                                        variable=self.checkbox_enabled, bg='white',
+                                                        fg='black', anchor='w')
+
         # Create an empty MB object, the constructor will be invoked at connection time
         self.client = "None"
 
         # A connection status
         self.connected = False
+
+        # A periodic status
+        self.periodic_enabled = False
 
         # Initialize all windows class components
         self.initialize()
@@ -142,6 +157,7 @@ class SimpleWindowGUI:
         self.entry_box_count.config(state=status)
         self.entry_box_unit.config(state=status)
         self.entry_box_data.config(state=status)
+        self.entry_box_periodic.config(state=status)
 
         if status == 'readonly':
             status = 'disabled'
@@ -150,6 +166,7 @@ class SimpleWindowGUI:
         self.cmd_type_input.config(state=status)
         self.cmd_type_write.config(state=status)
         self.list_mmap.config(state=status)
+        self.checkbox_periodic_request.config(state=status)
 
     # To avoid repeating code, status can be readonly, normal
     def toggle_conn_entries(self, status):
@@ -193,29 +210,31 @@ class SimpleWindowGUI:
 
         # Add the text box widget to the layout manager, stick to the East/West edges of the cell,
         # bind to an event when press enter to emulate the connect button, but bind also to mouse click to clear cells
-        self.entry_box_port.grid(column=2, row=0, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_port.grid(column=2, row=0, columnspan=3, sticky='EW', padx=10)
         self.entry_box_port.bind("<Button-1>", self.on_click_text_entry_box_port)
         self.entry_box_port.bind("<Return>", self.call_on_button_connect)
-        self.entry_box_parity.grid(column=2, row=1, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_parity.grid(column=2, row=1, columnspan=3, sticky='EW', padx=10)
         self.entry_box_parity.bind("<Button-1>", self.on_click_text_entry_box_parity)
         self.entry_box_parity.bind("<Return>", self.call_on_button_connect)
-        self.entry_box_baudrate.grid(column=2, row=2, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_baudrate.grid(column=2, row=2, columnspan=3, sticky='EW', padx=10)
         self.entry_box_baudrate.bind("<Button-1>", self.on_click_text_entry_box_baudrate)
         self.entry_box_baudrate.bind("<Return>", self.call_on_button_connect)
-        self.entry_box_stopbits.grid(column=2, row=3, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_stopbits.grid(column=2, row=3, columnspan=3, sticky='EW', padx=10)
         self.entry_box_stopbits.bind("<Button-1>", self.on_click_text_entry_box_stopbits)
         self.entry_box_stopbits.bind("<Return>", self.call_on_button_connect)
-        self.entry_box_bytesize.grid(column=2, row=4, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_bytesize.grid(column=2, row=4, columnspan=3, sticky='EW', padx=10)
         self.entry_box_bytesize.bind("<Button-1>", self.on_click_text_entry_box_bytesize)
         self.entry_box_bytesize.bind("<Return>", self.call_on_button_connect)
 
-        self.entry_box_reg.grid(column=2, row=7, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_reg.grid(column=2, row=7, columnspan=3, sticky='EW', padx=10)
         self.entry_box_reg.bind("<Return>", self.call_on_button_send)
-        self.entry_box_count.grid(column=2, row=8, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_count.grid(column=2, row=8, columnspan=3, sticky='EW', padx=10)
         self.entry_box_count.bind("<Return>", self.call_on_button_send)
-        self.entry_box_unit.grid(column=2, row=9, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_unit.grid(column=2, row=9, columnspan=3, sticky='EW', padx=10)
         self.entry_box_unit.bind("<Return>", self.call_on_button_send)
-        self.entry_box_data.grid(column=2, row=10, columnspan=4, sticky='EW', padx=10)
+        self.entry_box_data.grid(column=2, row=10, columnspan=3, sticky='EW', padx=10)
+        self.entry_box_data.bind("<Return>", self.call_on_button_send)
+        self.entry_box_periodic.grid(column=2, row=11, columnspan=1, sticky='EW', padx=10)
         self.entry_box_data.bind("<Return>", self.call_on_button_send)
 
         # Create a simple button bind to an event handler
@@ -223,27 +242,29 @@ class SimpleWindowGUI:
         button_connect.grid(column=0, row=0, columnspan=2, sticky='EW')
         self.button_connect_text.set(u"CONNECT")
 
-        button_send_command = tk.Button(self.frame, text=u"SEND COMMAND ", command=self.on_button_send)
-        button_send_command.grid(column=8, row=10, columnspan=2, sticky='EW')
+        button_send_command = tk.Button(self.frame, textvariable=self.button_send_command_text,
+                                        command=self.on_button_send)
+        button_send_command.grid(column=7, row=11, columnspan=2, sticky='EW')
+        self.button_send_command_text.set(u"SEND COMMAND ")
 
         # Create labels, black font and white background, text left-aligned ("w"),
         # expand the label across 2 cells in the grid layout manager (columnspan),
         # bind the variable tag to the widget
 
         label_port = tk.Label(self.frame, textvariable=self.label_port_text, anchor="w", fg="black", bg="white")
-        label_port.grid(column=6, row=0, columnspan=4, sticky='EW')
+        label_port.grid(column=5, row=0, columnspan=4, sticky='EW')
         self.label_port_text.set(u"Serial Port")
         label_parity = tk.Label(self.frame, textvariable=self.label_parity_text, anchor="w", fg="black", bg="white")
-        label_parity.grid(column=6, row=1, columnspan=4, sticky='EW')
+        label_parity.grid(column=5, row=1, columnspan=4, sticky='EW')
         self.label_parity_text.set(u"(E)ven, (O)dd, (N)one")
         label_baudrate = tk.Label(self.frame, textvariable=self.label_baudrate_text, anchor="w", fg="black", bg="white")
-        label_baudrate.grid(column=6, row=2, columnspan=4, sticky='EW')
+        label_baudrate.grid(column=5, row=2, columnspan=4, sticky='EW')
         self.label_baudrate_text.set(u"Baud Rate")
         label_stopbits = tk.Label(self.frame, textvariable=self.label_stopbits_text, anchor="w", fg="black", bg="white")
-        label_stopbits.grid(column=6, row=3, columnspan=4, sticky='EW')
+        label_stopbits.grid(column=5, row=3, columnspan=4, sticky='EW')
         self.label_stopbits_text.set(u"Stop bits")
         label_bytesize = tk.Label(self.frame, textvariable=self.label_bytesize_text, anchor="w", fg="black", bg="white")
-        label_bytesize.grid(column=6, row=4, columnspan=4, sticky='EW')
+        label_bytesize.grid(column=5, row=4, columnspan=4, sticky='EW')
         self.label_bytesize_text.set(u"Byte size")
 
         label_reg = tk.Label(self.frame, textvariable=self.label_reg_text, anchor="w", fg="black", bg="white")
@@ -259,10 +280,14 @@ class SimpleWindowGUI:
         label_data.grid(column=0, row=10, columnspan=2, sticky='EW')
         self.label_data_text.set(u"Data (hex, no lead '0x')")
 
+        # Label with periodic interval instructions
+        label_periodic = tk.Label(self.frame, text=u"secs", fg="black", bg="white", width=5, anchor='w', justify='left')
+        label_periodic.grid(column=3, row=11, columnspan=1, sticky='EW')
+
         # This is the connection status label
         label_connection = tk.Label(self.frame, textvariable=self.label_connection_text, anchor="w",
                                     fg="black", bg="grey")
-        label_connection.grid(column=0, row=5, columnspan=10, sticky='EW')
+        label_connection.grid(column=0, row=5, columnspan=8, sticky='EW')
         self.label_connection_text.set(u"Awaiting connection!")
 
         # This is the command status label (Request sent)
@@ -270,8 +295,8 @@ class SimpleWindowGUI:
                                           fg="black", bg="white")
         label_command_send = tk.Label(self.frame, textvariable=self.label_command_send_text, anchor="w",
                                       fg="black", bg="grey")
-        label_command_send_hdr.grid(column=0, row=15, columnspan=1, sticky='EW')
-        label_command_send.grid(column=1, row=15, columnspan=10, sticky='EW')
+        label_command_send_hdr.grid(column=0, row=17, columnspan=1, sticky='EW')
+        label_command_send.grid(column=1, row=17, columnspan=7, sticky='EW')
         self.label_command_send_hdr_text.set(u"TX")
         self.label_command_send_text.set(u"Awaiting command")
 
@@ -280,30 +305,33 @@ class SimpleWindowGUI:
                                              fg="black", bg="white")
         label_command_receive = tk.Label(self.frame, textvariable=self.label_command_receive_text, anchor="w",
                                          fg="black", bg="grey")
-        label_command_receive_hdr.grid(column=0, row=16, columnspan=1, sticky='EW')
-        label_command_receive.grid(column=1, row=16, columnspan=10, sticky='EW')
+        label_command_receive_hdr.grid(column=0, row=18, columnspan=1, sticky='EW')
+        label_command_receive.grid(column=1, row=18, columnspan=7, sticky='EW')
         self.label_command_receive_hdr_text.set(u"RX")
         self.label_command_receive_text.set(u"Awaiting response/exception")
 
         # Empty label, as I don't know how to place emtpy rows as Tkinter ignores it...
-        tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=6, columnspan=10, sticky='EW')
-        tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=11, columnspan=10, sticky='EW')
-        tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=14, columnspan=10, sticky='EW')
+        tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=6, columnspan=8, sticky='EW')
+        # tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=11, columnspan=8, sticky='EW')
+        tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=13, columnspan=8, sticky='EW')
+        tk.Label(self.frame, anchor="w", bg="white").grid(column=0, row=16, columnspan=8, sticky='EW')
 
         # Initialize radio buttons
-        self.cmd_type_input.grid(column=8, row=7, sticky='W')
-        self.cmd_type_holding.grid(column=8, row=8, sticky='W')
-        self.cmd_type_write.grid(column=8, row=9, sticky='W')
+        self.cmd_type_input.grid(column=7, row=7, sticky='W')
+        self.cmd_type_holding.grid(column=7, row=8, sticky='W')
+        self.cmd_type_write.grid(column=7, row=9, sticky='W')
         self.cmd_type_input.select()
 
         # Initialize lists and its scrollbar, create a label for the list and bind to events
-        tk.Label(self.frame, anchor="w", bg="grey", text=self.initialize_mmap()).grid(column=0, row=12,
-                                                                                      columnspan=10,
+        tk.Label(self.frame, anchor="w", bg="grey", text=self.initialize_mmap()).grid(column=0, row=14,
+                                                                                      columnspan=8,
                                                                                       sticky='EW')
-        self.list_mmap.grid(column=0, columnspan=3, row=13, sticky='WE')
+        self.list_mmap.grid(column=0, columnspan=2, row=15, sticky='WE')
         self.list_mmap.columnconfigure(0, weight=1)
         self.list_mmap_scrollbar.grid(column=0, sticky='EW')
         self.list_mmap.bind("<Double-Button-1>", self.on_double_click_list_mmap)
+
+        self.checkbox_periodic_request.grid(column=0, row=11, columnspan=2, sticky='NW')
 
         # Print instructions on the text box
         self.entry_port.set(u"/dev/ttyUSB0")
@@ -372,14 +400,100 @@ class SimpleWindowGUI:
             self.toggle_conn_entries('normal')
             self.toggle_mb_entries('readonly')
 
-    def on_button_send(self):
+    # Wrapper to launch the request after the checks have been done
+    def execute_command(self, cmd, val):
         # Create a dictionary with the command types and corresponding functions to call
         cmd_key = {mb_cmd[0]: MB.read_input_registers,
                    mb_cmd[1]: MB.read_holding_registers}
 
+        if cmd == 'write' and val is not None:
+            # Depending on the number of registers to write, use either write operation from MB
+            if int(self.entry_box_count.get()) > 1:
+                result = MB.write_registers(self.client, int(self.entry_box_reg.get()),
+                                            val, int(self.entry_box_unit.get()))
+            else:
+                result = MB.write_single_register(self.client, int(self.entry_box_reg.get()),
+                                                  val[0], int(self.entry_box_unit.get()))
+        elif cmd == 'read':
+            # Retrieve the command type and call the corresponding function
+            result = cmd_key[self.command_type.get()](self.client,
+                                                      int(self.entry_box_reg.get()),
+                                                      int(self.entry_box_count.get()),
+                                                      int(self.entry_box_unit.get()))
+        else:
+            result = None
+
+        if result is None:
+            self.label_command_send_text.set(u"Command was not executed, result None")
+            return
+
+        # print type(result)
+
+        # Create single array to print result to user
+        registers_result = ''
+        base_cmd_register = int(self.entry_box_reg.get())
+
+        if isinstance(result, WriteMultipleRegistersResponse):
+            registers_result = "Wrote from {0} to {1} registers at {2}".format(str(result.address),
+                                                                               str(result.address + result.count),
+                                                                               str(result.unit_id))
+            self.label_command_receive_text.set(registers_result)
+
+        elif isinstance(result, WriteSingleRegisterResponse):
+            registers_result = str(base_cmd_register) + ':' + str(hex(result.value)[2:].zfill(2))
+            self.label_command_receive_text.set(registers_result)
+
+        elif isinstance(result, ExceptionResponse):
+            error_message = "Exception (EC{0} : {1})".format(str(result.exception_code),
+                                                             mb_exc_codes[result.exception_code])
+            self.label_command_receive_text.set(error_message)
+
+        elif isinstance(result, ReadInputRegistersResponse) or isinstance(result, ReadHoldingRegistersResponse):
+            # Filter timeout, at the moment noticeable by a zero-string returned
+            if len(result.registers) == 0:
+                self.label_command_send_text.set(u"TIMEOUT!")
+                return
+
+            for regs in result.registers:
+                registers_result = registers_result + ' ' + str(base_cmd_register) + ':' + str(hex(regs)[2:].zfill(2))
+                base_cmd_register += 1
+            # Remove leading/ending spaces
+            registers_result.strip()
+            self.label_command_receive_text.set(registers_result)
+
+        # Print the modbus frame sent on the TX label
+
+        # If enabled, trigger the request again
+        if self.checkbox_enabled.get():
+            # Block the entry boxes
+            self.periodic_enabled = True
+            self.toggle_mb_entries('readonly')
+            self.button_send_command_text.set(u"STOP PERIODIC")
+
+            # Launch the request (broken)
+            # self.master.after(20000, self.execute_command(cmd, val))
+        else:
+            self.toggle_mb_entries('normal')
+
+    def on_button_send(self):
+
         # Prevent eager users...
         if self.connected is False:
             self.label_connection_text.set(u"Not connected! connect first")
+            return
+
+        #
+        if self.periodic_enabled is True:
+            # Stop the timer
+
+            # Clear the flag
+            self.periodic_enabled = False
+
+            # Enable the MB entry boxes and re-draw button
+            self.toggle_mb_entries('normal')
+            self.button_send_command_text.set(u'SEND COMMAND ')
+
+            # And exit
             return
 
         # Re-set the TX/RX expected label
@@ -392,6 +506,12 @@ class SimpleWindowGUI:
            not self.entry_box_unit.get().isdigit():
                 self.label_command_send_text.set(u"Invalid data, Reg value/numbers, ID must be numbers")
                 return
+
+        # Checks done on the periodic checkbox: empty, as strings are converted to integers, any floating number
+        # will be rounded, so that's on the user side...
+        if self.checkbox_enabled.get() and self.entry_box_periodic.get() is '':
+            self.label_command_send_text.set(u"No periodic interval set")
+            return
 
         # Filter this as it has different arguments
         if self.command_type.get() == mb_cmd[2]:
@@ -433,59 +553,9 @@ class SimpleWindowGUI:
                 self.label_command_send_text.set(u"Number of registers to write do not match data length!")
                 return
 
-            # Depending on the number of registers to write, use either write operation from MB
-            if int(self.entry_box_count.get()) > 1:
-                print "here"
-                result = MB.write_registers(self.client, int(self.entry_box_reg.get()),
-                                            a_list, int(self.entry_box_unit.get()))
-            else:
-                result = MB.write_single_register(self.client, int(self.entry_box_reg.get()),
-                                                  a_list[0], int(self.entry_box_unit.get()))
+            self.execute_command('write', a_list)
         else:
-            # Retrieve the command type and call the corresponding function
-            result = cmd_key[self.command_type.get()](self.client,
-                                                      int(self.entry_box_reg.get()),
-                                                      int(self.entry_box_count.get()),
-                                                      int(self.entry_box_unit.get()))
-        if result is None:
-            self.label_command_send_text.set(u"Command was not executed, result None")
-            return
-
-        # print type(result)
-
-        # Create single array to print result to user
-        registers_result = ''
-        base_cmd_register = int(self.entry_box_reg.get())
-
-        if isinstance(result, WriteMultipleRegistersResponse):
-            registers_result = "Wrote from {0} to {1} registers at {2}".format(str(result.address),
-                                                                               str(result.address + result.count),
-                                                                               str(result.unit_id))
-            self.label_command_receive_text.set(registers_result)
-
-        elif isinstance(result, WriteSingleRegisterResponse):
-            registers_result = str(base_cmd_register) + ':' + str(hex(result.value)[2:].zfill(2))
-            self.label_command_receive_text.set(registers_result)
-
-        elif isinstance(result, ExceptionResponse):
-            error_message = "Exception (EC{0} : {1})".format(str(result.exception_code),
-                                                             mb_exc_codes[result.exception_code])
-            self.label_command_receive_text.set(error_message)
-
-        elif isinstance(result, ReadInputRegistersResponse) or isinstance(result, ReadHoldingRegistersResponse):
-            # Filter timeout, at the moment noticeable by a zero-string returned
-            if len(result.registers) == 0:
-                self.label_command_send_text.set(u"TIMEOUT!")
-                return
-
-            for regs in result.registers:
-                registers_result = registers_result + ' ' + str(base_cmd_register) + ':' + str(hex(regs)[2:].zfill(2))
-                base_cmd_register += 1
-            # Remove leading/ending spaces
-            registers_result.strip()
-            self.label_command_receive_text.set(registers_result)
-
-        # Print the modbus frame sent on the TX label
+            self.execute_command('read', None)
 
     # This event is triggered by a double click, user selects a register from the memory map
     # and its content is updated in the command boxes
@@ -509,7 +579,6 @@ class SimpleWindowGUI:
             self.cmd_type_input.select()
         else:
             self.cmd_type_holding.select()
-
 
     # The functions below are meant only for clearing the text box content on a mouse click,
     # this could be optimized into a single function, this has to be done eventually :)

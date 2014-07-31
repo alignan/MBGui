@@ -24,7 +24,7 @@ if DEBUG_MB:
     import logging
 
 # Name of the memory map XML file
-MMAP_FILE_NAME = '\mmap.xml'
+MMAP_FILE_NAME = ''
 
 # Available type of MB request types
 mb_cmd = ['input', 'holding', 'write']
@@ -45,11 +45,14 @@ mb_exc_codes = {1: "Illegal function",
 
 # Class to build a simple GUI window
 class SimpleWindowGUI:
-    def __init__(self, title):
+    def __init__(self, title, mmap_location):
         self.master = tk.Tk()
         self.master.title(title)
         self.frame = tk.Frame(self.master, borderwidth=5, bg='white')
         self.master.iconbitmap(default='transparent.ico')
+
+        global MMAP_FILE_NAME
+        MMAP_FILE_NAME = mmap_location
 
         # Create a text entry variables for the connection module
         self.entry_port = tk.StringVar()

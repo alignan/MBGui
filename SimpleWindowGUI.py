@@ -485,6 +485,7 @@ class SimpleWindowGUI:
         self.label_command_send_text.set("OK! - " + tx_frame)
 
         if result is None:
+            self.toggle_mb_entries('normal')
             self.label_command_receive_text.set(u"FAIL, check if device is ON")
             return
 
@@ -510,6 +511,7 @@ class SimpleWindowGUI:
         elif isinstance(result, ReadInputRegistersResponse) or isinstance(result, ReadHoldingRegistersResponse):
             # Filter timeout, at the moment noticeable by a zero-string returned
             if len(result.registers) == 0:
+                self.toggle_mb_entries('normal')
                 self.label_command_send_text.set(u"TIMEOUT!")
                 return
 
@@ -612,8 +614,11 @@ class SimpleWindowGUI:
                 self.label_command_send_text.set(u"Number of registers to write do not match data length!")
                 return
 
+            # Block MB fields
+            self.toggle_mb_entries('readonly')
             self.execute_command('write', cmd_type, a_list)
         else:
+            self.toggle_mb_entries('readonly')
             self.execute_command('read', cmd_type, None)
 
     # This event is triggered by a double click, user selects a register from the memory map

@@ -12,6 +12,7 @@ import ModbusRTUMaster as MB
 from pymodbus.pdu import ExceptionResponse
 from pymodbus.register_read_message import *
 from pymodbus.register_write_message import *
+from pymodbus.utilities import computeCRC
 
 # To read mmap.xml file
 import os
@@ -44,6 +45,28 @@ mb_exc_codes = {1: "Illegal function",
                 8: "Memory Parity Error",
                 9: "Gateway Path Unavailable",
                 10: "Gateway Target Device Failed to respond"}
+
+
+# Auxiliary function to do dirty stuff that I'm not proud of
+def str_hex(val, fill):
+    a = str(hex(int(val))[2:].zfill(fill))
+    # We only expect values up to 4...
+    if fill > 2:
+        a = a[:2] + " " + a[2:]
+    return a
+
+
+# I'm not too proud of this one too...
+def get_fc(cmd, num):
+    if cmd == mb_cmd[0]:
+        return '04'
+    if cmd == mb_cmd[1]:
+        return '03'
+    if cmd == mb_cmd[2]:
+        if num > 1:
+            return '10'
+        else:
+            return '06'
 
 
 # Class to build a simple GUI window
@@ -400,43 +423,79 @@ class SimpleWindowGUI:
             self.toggle_conn_entries('normal')
             self.toggle_mb_entries('readonly')
 
+    # Auxiliary function to retrieve request function code
+    def create_outgoing_frame(self, a_unit, a_reg, a_count, a_data, a_type):
+        if a_count is None:
+            a_count = 0
+
+        if isinstance(a_reg, str):
+            a_reg = int(a_reg)-1
+            a_reg = str(a_reg)
+
+        tx_frame = '{0} {1} {2} '.format(str_hex(a_unit, 2), get_fc(a_type, a_count), str_hex(a_reg, 4))
+
+        # Fill frame based on supported function code
+        if a_type == mb_cmd[2]:
+            # Write single register, as the data is sent as hexadecimal number, we need to convert to string
+            if a_count == 1:
+                tx_frame = tx_frame + "{0} ".format(str_hex(str(a_data), 4))
+
+            # In case of multiple write:
+            # ID + FC + Reg + Count + Count (bytes, 8-bit wide) + data
+            else:
+                tx_frame = tx_frame + "{0} {1} ".format(str_hex(a_count, 4), str_hex(str(int(a_count)*2), 2))
+                for val in a_data:
+                    tx_frame = tx_frame + "{0} ".format(str_hex(val, 4))
+
+        # Read operation, in both holding/input register types the structure is the same
+        else:
+            tx_frame = tx_frame + "{0} ".format(str_hex(a_count, 4))
+
+        # Calculate CRC and append
+        crc_frame = tx_frame.replace(' ', '').decode('hex')
+        tx_frame = tx_frame + '{0}'.format(str_hex(computeCRC(crc_frame), 4))
+        # print tx_frame
+        return tx_frame
+
     # Wrapper to launch the request after the checks have been done
-    def execute_command(self, cmd, val):
+    def execute_command(self, cmd, cmd_type, val):
         # Create a dictionary with the command types and corresponding functions to call
         cmd_key = {mb_cmd[0]: MB.read_input_registers,
                    mb_cmd[1]: MB.read_holding_registers}
 
+        cmd_unit = self.entry_box_unit.get()
+        cmd_reg = self.entry_box_reg.get()
+        cmd_count = self.entry_box_count.get()
+
         if cmd == 'write' and val is not None:
             # Depending on the number of registers to write, use either write operation from MB
-            if int(self.entry_box_count.get()) > 1:
-                result = MB.write_registers(self.client, int(self.entry_box_reg.get()),
-                                            val, int(self.entry_box_unit.get()))
+            if int(cmd_count) > 1:
+                result = MB.write_registers(self.client, int(cmd_reg), val, int(cmd_unit))
             else:
-                result = MB.write_single_register(self.client, int(self.entry_box_reg.get()),
-                                                  val[0], int(self.entry_box_unit.get()))
+                result = MB.write_single_register(self.client, int(cmd_reg), val[0], int(cmd_unit))
+
         elif cmd == 'read':
             # Retrieve the command type and call the corresponding function
-            result = cmd_key[self.command_type.get()](self.client,
-                                                      int(self.entry_box_reg.get()),
-                                                      int(self.entry_box_count.get()),
-                                                      int(self.entry_box_unit.get()))
+            result = cmd_key[self.command_type.get()](self.client, int(cmd_reg), int(cmd_count), int(cmd_unit))
         else:
             result = None
 
-        if result is None:
-            self.label_command_send_text.set(u"Command was not executed, result None")
-            return
+        # Update TX label
+        tx_frame = self.create_outgoing_frame(cmd_unit, cmd_reg, cmd_count, val, cmd_type)
+        self.label_command_send_text.set("OK! - " + tx_frame)
 
-        # print type(result)
+        if result is None:
+            self.label_command_receive_text.set(u"FAIL, check if device is ON")
+            return
 
         # Create single array to print result to user
         registers_result = ''
         base_cmd_register = int(self.entry_box_reg.get())
 
         if isinstance(result, WriteMultipleRegistersResponse):
-            registers_result = "Wrote from {0} to {1} registers at {2}".format(str(result.address),
-                                                                               str(result.address + result.count),
-                                                                               str(result.unit_id))
+            registers_result = "Wrote registers {0} to {1} Unit {2}".format(str(result.address),
+                                                                            str(result.address + result.count),
+                                                                            str(result.unit_id))
             self.label_command_receive_text.set(registers_result)
 
         elif isinstance(result, WriteSingleRegisterResponse):
@@ -460,8 +519,6 @@ class SimpleWindowGUI:
             # Remove leading/ending spaces
             registers_result.strip()
             self.label_command_receive_text.set(registers_result)
-
-        # Print the modbus frame sent on the TX label
 
         # If enabled, trigger the request again
         if self.checkbox_enabled.get():
@@ -513,8 +570,10 @@ class SimpleWindowGUI:
             self.label_command_send_text.set(u"No periodic interval set")
             return
 
+        cmd_type = self.command_type.get()
+
         # Filter this as it has different arguments
-        if self.command_type.get() == mb_cmd[2]:
+        if cmd_type == mb_cmd[2]:
 
             # We cannot accept empty data fields or odd data i.e 004 (I don't want to pad, I'm a lazy fuck)
             if len(self.entry_box_data.get()) <= 0:
@@ -553,9 +612,9 @@ class SimpleWindowGUI:
                 self.label_command_send_text.set(u"Number of registers to write do not match data length!")
                 return
 
-            self.execute_command('write', a_list)
+            self.execute_command('write', cmd_type, a_list)
         else:
-            self.execute_command('read', None)
+            self.execute_command('read', cmd_type, None)
 
     # This event is triggered by a double click, user selects a register from the memory map
     # and its content is updated in the command boxes

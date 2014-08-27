@@ -239,6 +239,10 @@ class SimpleWindowGUI:
                                                         variable=self.checkbox_enabled, bg='white',
                                                         fg='black', anchor='w')
 
+        # Create send command button
+        self.button_send_command = tk.Button(self.frame, textvariable=self.button_send_command_text,
+                                             command=self.on_button_send)
+
         # Create a list to store the saved requests and its button
         self.button_save = tk.Button(self.frame, textvariable=self.button_save_text, command=self.popup)
         self.cmd_entries = collections.OrderedDict()
@@ -318,6 +322,7 @@ class SimpleWindowGUI:
         self.list_cmd.config(state=status)
         self.checkbox_periodic_request.config(state=status)
         self.button_save.config(state=status)
+        self.button_send_command.config(state=status)
 
     # To avoid repeating code, status can be readonly, normal
     def toggle_conn_entries(self, status):
@@ -457,10 +462,8 @@ class SimpleWindowGUI:
         self.button_save.grid(column=7, row=10, columnspan=2, sticky='EW')
         self.button_save_text.set(u"SAVE COMMAND")
 
-        # Create button to send request
-        button_send_command = tk.Button(self.frame, textvariable=self.button_send_command_text,
-                                        command=self.on_button_send)
-        button_send_command.grid(column=7, row=11, columnspan=2, sticky='EW')
+        # Initialize button to send request
+        self.button_send_command.grid(column=7, row=11, columnspan=2, sticky='EW')
         self.button_send_command_text.set(u"SEND COMMAND ")
 
         # Create labels, black font and white background, text left-aligned ("w"),

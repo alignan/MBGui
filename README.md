@@ -24,3 +24,6 @@ Known bugs/enhancements required:
 - When reading more than 100 input/holding registers, window resize bad
 - Clean up and remove repeated code/blocks, create classes, etc
 - Clean up grid, use max values/weights
+
+Precompiled files available at:
+https://sourceforge.net/projects/mbgui/

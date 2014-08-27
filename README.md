@@ -11,13 +11,12 @@ Currently supported:
 - Program periodically write/read operations, store result in a plain-text file with timestamp (broken)
 - Displays outgoing TX frame (bytes) with CRC appended
 - Displays Response/Exception information
-- Store/load MB commands (currently from fixed location, see cmd.txt file)
+- Store/load MB commands from Menu
 
 Features missing:
 
 - Make unit ID a list to be able to poll several MB servers with a single command
 - Coil support, maybe...
-- Change base mmap/cmd files in runtime from the GUI
 
 Known bugs/enhancements required:
 

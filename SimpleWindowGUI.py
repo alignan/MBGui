@@ -8,6 +8,7 @@ __author__ = "Antonio Lignan"
 import Tkinter as tk
 import tkMessageBox
 import ModbusRTUMaster as MB
+from tkFileDialog import askopenfilename
 
 # The following are to process the response/exceptions from read/write operations
 from pymodbus.pdu import ExceptionResponse
@@ -30,11 +31,11 @@ if DEBUG_MB:
 
 ABOUT_INFO = "Hello world"
 
-# Name of the memory map XML file
-MMAP_FILE_NAME = ''
+# Name of the default memory map XML file
+mmap_abs_path = os.path.dirname(os.path.abspath(__file__)) + "\mmap.xml"
 
-# Name of the command file
-CMD_FILE_NAME = "\cmd.txt"
+# Name of the default command file
+cmd_abs_path = os.path.dirname(os.path.abspath(__file__)) + "\cmd.txt"
 
 # Available type of MB request types
 mb_cmd = ['input', 'holding', 'write']
@@ -112,7 +113,6 @@ class PopUpWindow(object):
         aux = '\n' + self.value + " " + ":" + " " + self.data
 
         # First check if the cmd.xml exists ON my location
-        cmd_abs_path = os.path.dirname(os.path.abspath(__file__)) + CMD_FILE_NAME
         if not os.path.isfile(cmd_abs_path):
             # TODO: create an error pop-up box
             self.cleanup()
@@ -156,7 +156,7 @@ class PopUpWindow(object):
 
 # Class to build a simple GUI window
 class SimpleWindowGUI:
-    def __init__(self, title, mmap_location):
+    def __init__(self, title):
         self.master = tk.Tk()
         self.master.title(title)
         self.frame = tk.Frame(self.master, borderwidth=5, bg='white')
@@ -164,9 +164,6 @@ class SimpleWindowGUI:
 
         # Create this for a pop-up window
         self.top = None
-
-        global MMAP_FILE_NAME
-        MMAP_FILE_NAME = mmap_location
 
         # Create a text entry variables for the connection module
         self.entry_port = tk.StringVar()
@@ -261,7 +258,7 @@ class SimpleWindowGUI:
         menu_bar.add_cascade(label="About", command=self.display_about)
 
         file_menu.add_cascade(label="Memory Map...", command=self.load_memory_map)
-        file_menu.add_cascade(label="Stored Requests...", command=self.load_saved_requests())
+        file_menu.add_cascade(label="Stored Requests...", command=self.load_saved_requests)
 
         # Create an empty MB object, the constructor will be invoked at connection time
         self.client = "None"
@@ -289,14 +286,18 @@ class SimpleWindowGUI:
         tkMessageBox.showinfo("About MBGui", ABOUT_INFO)
 
     # Load a memory map file
-    # TODO: store last opened file in a defaults file, this should be loaded when running the app
     def load_memory_map(self):
-        pass
+        global mmap_abs_path
+        if self.connected:
+            mmap_abs_path = askopenfilename()
+            self.initialize_mmap()
 
     # Load stored requests
-    # TODO: store last opened file in a defaults file, this should be loaded when running the app
     def load_saved_requests(self):
-        pass
+        global cmd_abs_path
+        if self.connected:
+            cmd_abs_path = askopenfilename()
+            self.initialize_cmd()
 
     # To avoid repeating code, status can be readonly, normal, we
     # swap readonly for disable in the case of the radio button widgets
@@ -329,7 +330,6 @@ class SimpleWindowGUI:
     # Populates a list with a given list of stored commands
     def initialize_cmd(self):
         # First check if the cmd.xml exists ON my location
-        cmd_abs_path = os.path.dirname(os.path.abspath(__file__)) + CMD_FILE_NAME
         if not os.path.isfile(cmd_abs_path):
             return "No command file found"
 
@@ -382,8 +382,14 @@ class SimpleWindowGUI:
 
     # Populates a list with a given memory map
     def initialize_mmap(self):
+
+        # Flush the list before populating
+        self.list_mmap.delete(0, tk.END)
+
+        # Ensure the dictionary is empty before populating
+        self.mmap_entries.clear()
+
         # First check if the mmap.xml exists ON my location
-        mmap_abs_path = os.path.dirname(os.path.abspath(__file__)) + MMAP_FILE_NAME
         if not os.path.isfile(mmap_abs_path):
             return "No mmap.xml file found"
 

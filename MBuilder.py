@@ -12,4 +12,4 @@ from SimpleWindowGUI import *
 if __name__ == "__main__":
 
     # Create a GUI object and set title, it will loop from the constructor
-    app = SimpleWindowGUI("Modbus Frame builder", "\mmap.xml")
+    app = SimpleWindowGUI("Modbus Frame builder")

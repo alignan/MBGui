@@ -52,7 +52,7 @@ from pymodbus.register_write_message import *
 from pymodbus.utilities import computeCRC
 
 # To read mmap.xml file
-import os
+import os, sys
 import collections
 from xml.dom import minidom
 
@@ -190,13 +190,25 @@ class PopUpWindow(object):
         self.cleanup()
 
 
+# Using pyinstaller to packet into a single exe, we need to use this to get the correct path
+# Taken from http://stackoverflow.com/questions/7674790/bundling-data-files-with-pyinstaller-onefile
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 # Class to build a simple GUI window
 class SimpleWindowGUI:
     def __init__(self, title):
         self.master = tk.Tk()
         self.master.title(title)
         self.frame = tk.Frame(self.master, borderwidth=5, bg='white')
-        self.master.iconbitmap(default='transparent.ico')
+        self.master.iconbitmap(default=resource_path('transparent.ico'))
 
         # Create this for a pop-up window
         self.top = None

@@ -6,6 +6,7 @@ __author__ = "Antonio Lignan"
 # // TODO: Reduce repeated code: create classes for buttons, labels, etc... this was done on the go!
 
 import Tkinter as tk
+import tkMessageBox
 import ModbusRTUMaster as MB
 
 # The following are to process the response/exceptions from read/write operations
@@ -20,15 +21,20 @@ import collections
 from xml.dom import minidom
 
 # To periodically execute a request
-import time, threading
+# import time, threading
 
 DEBUG_MB = 1
 
 if DEBUG_MB:
     import logging
 
+ABOUT_INFO = "Hello world"
+
 # Name of the memory map XML file
 MMAP_FILE_NAME = ''
+
+# Name of the command file
+CMD_FILE_NAME = "\cmd.txt"
 
 # Available type of MB request types
 mb_cmd = ['input', 'holding', 'write']
@@ -69,6 +75,85 @@ def get_fc(cmd, num):
             return '06'
 
 
+class PopUpWindow(object):
+    def __init__(self, master, data, my_list, my_dict):
+        top = self.top = tk.Toplevel(master)
+        self.display_text = tk.StringVar()
+        self.value = ''
+        self.data = data
+        self.my_list = my_list
+        self.my_dict = my_dict
+
+        tk.Message(top, textvariable=self.display_text, width=200).grid(column=0, row=1, columnspan=8, sticky='EW')
+        self.top_text = tk.Entry(self.top, justify='left')
+        self.top_text.grid(column=0, row=2, columnspan=8, sticky='EW')
+
+        # Create buttons, close should kill the pop-up menu, save should be triggered upon click or return press
+        button_save = tk.Button(top, text=u"SAVE", command=self.store, justify='center')
+        button_close = tk.Button(top, text=u"CANCEL", command=self.cleanup, justify='center')
+
+        button_save.grid(column=0, row=4, columnspan=4, sticky='EW')
+        button_close.grid(column=4, row=4, columnspan=4, sticky='EW')
+
+        top.title(u"Save")
+        self.display_text.set(u"Name the request and click SAVE")
+
+    # Destroy the frame and get the content from the entry box
+    def cleanup(self):
+        self.value = ''
+        self.data = ''
+        self.top.destroy()
+
+    # Store the command and close
+    def store(self):
+        self.value = self.top_text.get()
+
+        # Create a string with the command information
+        aux = '\n' + self.value + " " + ":" + " " + self.data
+
+        # First check if the cmd.xml exists ON my location
+        cmd_abs_path = os.path.dirname(os.path.abspath(__file__)) + CMD_FILE_NAME
+        if not os.path.isfile(cmd_abs_path):
+            # TODO: create an error pop-up box
+            self.cleanup()
+            return
+
+        # Open the document and append
+        try:
+            cmd_file = open(cmd_abs_path, 'a')
+        except:
+            # TODO: create an error pop-up box
+            self.cleanup()
+            return
+
+        cmd_file.write(aux)
+        cmd_file.close()
+
+        # Now store the entry to the dict, refresh the command list, enable back the list and store
+        self.my_list.config(state='normal')
+
+        aux = []
+        tmp = self.data[:-1].split()
+        aux.append(tmp[0])
+        aux.append(tmp[1])
+        aux.append(tmp[2])
+        if tmp[3] != "None":
+            new = ""
+            for i in range(3, len(tmp)-1):
+                new = new + tmp[i]
+            aux.append(new)
+        else:
+            aux.append(tmp[3])
+        aux.append(tmp[len(tmp)-1])
+
+        self.my_dict[self.value] = aux
+
+        self.my_list.insert(tk.END, self.value)
+
+        # And destroy the window
+        self.cleanup()
+
+
 # Class to build a simple GUI window
 class SimpleWindowGUI:
     def __init__(self, title, mmap_location):
@@ -76,6 +161,9 @@ class SimpleWindowGUI:
         self.master.title(title)
         self.frame = tk.Frame(self.master, borderwidth=5, bg='white')
         self.master.iconbitmap(default='transparent.ico')
+
+        # Create this for a pop-up window
+        self.top = None
 
         global MMAP_FILE_NAME
         MMAP_FILE_NAME = mmap_location
@@ -125,6 +213,7 @@ class SimpleWindowGUI:
         self.label_command_send_text = tk.StringVar()
         self.label_command_receive_text = tk.StringVar()
         self.button_send_command_text = tk.StringVar()
+        self.button_save_text = tk.StringVar()
 
         # Variable to select command type using radiobutton widget
         self.command_type = tk.StringVar()
@@ -153,6 +242,27 @@ class SimpleWindowGUI:
                                                         variable=self.checkbox_enabled, bg='white',
                                                         fg='black', anchor='w')
 
+        # Create a list to store the saved requests and its button
+        self.button_save = tk.Button(self.frame, textvariable=self.button_save_text, command=self.popup)
+        self.cmd_entries = collections.OrderedDict()
+        self.list_cmd = tk.Listbox(self.frame, bg='white')
+
+        # This is the scrollbar for the listbox
+        self.list_cmd_scrollbar = tk.Scrollbar(self.list_cmd, orient=tk.VERTICAL)
+        self.list_cmd.config(yscrollcommand=self.list_cmd_scrollbar.set)
+        self.list_cmd_scrollbar.config(command=self.list_cmd.yview)
+
+        # Create the menu bar
+        menu_bar = tk.Menu(self.master)
+        self.master.config(menu=menu_bar)
+        file_menu = tk.Menu(menu_bar)
+
+        menu_bar.add_cascade(label="Load", menu=file_menu)
+        menu_bar.add_cascade(label="About", command=self.display_about)
+
+        file_menu.add_cascade(label="Memory Map...", command=self.load_memory_map)
+        file_menu.add_cascade(label="Stored Requests...", command=self.load_saved_requests())
+
         # Create an empty MB object, the constructor will be invoked at connection time
         self.client = "None"
 
@@ -173,6 +283,21 @@ class SimpleWindowGUI:
         # And loop
         self.master.mainloop()
 
+    # The classic about popup window
+    def display_about(self):
+        # TODO: get somehow the firmware version, date, etc, license!!!
+        tkMessageBox.showinfo("About MBGui", ABOUT_INFO)
+
+    # Load a memory map file
+    # TODO: store last opened file in a defaults file, this should be loaded when running the app
+    def load_memory_map(self):
+        pass
+
+    # Load stored requests
+    # TODO: store last opened file in a defaults file, this should be loaded when running the app
+    def load_saved_requests(self):
+        pass
+
     # To avoid repeating code, status can be readonly, normal, we
     # swap readonly for disable in the case of the radio button widgets
     def toggle_mb_entries(self, status):
@@ -189,7 +314,9 @@ class SimpleWindowGUI:
         self.cmd_type_input.config(state=status)
         self.cmd_type_write.config(state=status)
         self.list_mmap.config(state=status)
+        self.list_cmd.config(state=status)
         self.checkbox_periodic_request.config(state=status)
+        self.button_save.config(state=status)
 
     # To avoid repeating code, status can be readonly, normal
     def toggle_conn_entries(self, status):
@@ -199,6 +326,61 @@ class SimpleWindowGUI:
         self.entry_box_bytesize.config(state=status)
         self.entry_box_stopbits.config(state=status)
 
+    # Populates a list with a given list of stored commands
+    def initialize_cmd(self):
+        # First check if the cmd.xml exists ON my location
+        cmd_abs_path = os.path.dirname(os.path.abspath(__file__)) + CMD_FILE_NAME
+        if not os.path.isfile(cmd_abs_path):
+            return "No command file found"
+
+        # Load Text file
+        try:
+            cmd_file = open(cmd_abs_path, 'r+')
+        except:
+            return "File could not be open"
+
+        # Create a dictionary to store the command entries, ignore the lines starting
+        # with a comment push, remove the end-of-lines
+        for element in cmd_file:
+            discard_blank = element.rstrip()
+            if '#' not in element and discard_blank and ":" in discard_blank:
+                cmd_name = discard_blank.split(' : ')[0]
+                cmd_values = discard_blank.replace("\r\n", "").split(' : ')[1].split(' ')
+
+                # Filter invalid commands, remember to filter out the pesky carriage return at the end,
+                # Check for a minimum elements in command
+                cmd_args = []
+                cmd_last = cmd_values[len(cmd_values)-1]
+
+                if cmd_last in mb_cmd and len(cmd_values) >= 5:
+                    cmd_args.append(cmd_values[0])
+                    cmd_args.append(cmd_values[1])
+                    cmd_args.append(cmd_values[2])
+
+                    if cmd_values[3] == "None":
+                        cmd_args.append("")
+                    else:
+                        aux = ""
+                        for i in range(3, len(cmd_values)-1):
+                            aux = aux + " " + cmd_values[i]
+                        cmd_args.append(aux.strip())
+                    cmd_args.append(cmd_last)
+
+                    self.cmd_entries[cmd_name] = cmd_args
+
+        cmd_file.close()
+
+        # Check if my dictionary is empty
+        if not self.cmd_entries:
+            return "Command file is empty"
+
+        # Enter the commands into the list
+        for key, value in self.cmd_entries.items():
+            self.list_cmd.insert(tk.END, key)
+
+        return "Found commands below"
+
+    # Populates a list with a given memory map
     def initialize_mmap(self):
         # First check if the mmap.xml exists ON my location
         mmap_abs_path = os.path.dirname(os.path.abspath(__file__)) + MMAP_FILE_NAME
@@ -209,7 +391,7 @@ class SimpleWindowGUI:
         try:
             mmap = minidom.parse(mmap_abs_path)
         except:
-            return "File mmap.xml could not be parsed"
+            return "File could not be parsed"
 
         # Create a dictionary to store the entries in the following way (encode as string, not unicode):
         # {Name : [Address, Type, Length], ...]
@@ -225,7 +407,7 @@ class SimpleWindowGUI:
         for key, value in self.mmap_entries.items():
             self.list_mmap.insert(tk.END, key)
 
-        return "Memory map found, available registers below"
+        return "Available registers below"
 
     def initialize(self):
         # Create a grid layout manager
@@ -265,6 +447,11 @@ class SimpleWindowGUI:
         button_connect.grid(column=0, row=0, columnspan=2, sticky='EW')
         self.button_connect_text.set(u"CONNECT")
 
+        # Place the store command button on my frame
+        self.button_save.grid(column=7, row=10, columnspan=2, sticky='EW')
+        self.button_save_text.set(u"SAVE COMMAND")
+
+        # Create button to send request
         button_send_command = tk.Button(self.frame, textvariable=self.button_send_command_text,
                                         command=self.on_button_send)
         button_send_command.grid(column=7, row=11, columnspan=2, sticky='EW')
@@ -347,14 +534,23 @@ class SimpleWindowGUI:
 
         # Initialize lists and its scrollbar, create a label for the list and bind to events
         tk.Label(self.frame, anchor="w", bg="grey", text=self.initialize_mmap()).grid(column=0, row=14,
-                                                                                      columnspan=8,
+                                                                                      columnspan=3,
                                                                                       sticky='EW')
-        self.list_mmap.grid(column=0, columnspan=2, row=15, sticky='WE')
+        self.list_mmap.grid(column=0, columnspan=3, row=15, sticky='WE')
         self.list_mmap.columnconfigure(0, weight=1)
         self.list_mmap_scrollbar.grid(column=0, sticky='EW')
         self.list_mmap.bind("<Double-Button-1>", self.on_double_click_list_mmap)
 
         self.checkbox_periodic_request.grid(column=0, row=11, columnspan=2, sticky='NW')
+
+        # Initialize lists and its scrollbar, create a label for the list and bind to events
+        tk.Label(self.frame, anchor="w", bg="grey", text=self.initialize_cmd()).grid(column=3, row=14,
+                                                                                     columnspan=5,
+                                                                                     sticky='EW')
+        self.list_cmd.grid(column=3, columnspan=5, row=15, sticky='WE')
+        self.list_cmd.columnconfigure(0, weight=1)
+        self.list_cmd_scrollbar.grid(column=0, sticky='EW')
+        self.list_cmd.bind("<Double-Button-1>", self.on_double_click_list_cmd)
 
         # Print instructions on the text box
         self.entry_port.set(u"/dev/ttyUSB0")
@@ -534,43 +730,21 @@ class SimpleWindowGUI:
         else:
             self.toggle_mb_entries('normal')
 
-    def on_button_send(self):
-
-        # Prevent eager users...
-        if self.connected is False:
-            self.label_connection_text.set(u"Not connected! connect first")
-            return
-
-        #
-        if self.periodic_enabled is True:
-            # Stop the timer
-
-            # Clear the flag
-            self.periodic_enabled = False
-
-            # Enable the MB entry boxes and re-draw button
-            self.toggle_mb_entries('normal')
-            self.button_send_command_text.set(u'SEND COMMAND ')
-
-            # And exit
-            return
-
-        # Re-set the TX/RX expected label
-        self.label_command_receive_text.set(u"Awaiting response/exception")
-        self.label_command_send_text.set(u"Awaiting command")
-
+    # Check if data on the MB cells are valid, returns None if anything wrong, else returns data to call
+    # the execute_command method
+    def check_valid_mb_info(self):
         # Check the content of the common fields
         if not self.entry_box_reg.get().isdigit() or \
            not self.entry_box_count.get().isdigit() or \
            not self.entry_box_unit.get().isdigit():
                 self.label_command_send_text.set(u"Invalid data, Reg value/numbers, ID must be numbers")
-                return
+                return None, None, None
 
         # Checks done on the periodic checkbox: empty, as strings are converted to integers, any floating number
         # will be rounded, so that's on the user side...
         if self.checkbox_enabled.get() and self.entry_box_periodic.get() is '':
             self.label_command_send_text.set(u"No periodic interval set")
-            return
+            return None, None, None
 
         cmd_type = self.command_type.get()
 
@@ -580,7 +754,7 @@ class SimpleWindowGUI:
             # We cannot accept empty data fields or odd data i.e 004 (I don't want to pad, I'm a lazy fuck)
             if len(self.entry_box_data.get()) <= 0:
                 self.label_command_send_text.set(u"Data values have to be even (not odd, zero)")
-                return
+                return None, None, None
 
             # Now let's check if the string is actually a hexadecimal one
             test = self.entry_box_data.get()
@@ -594,7 +768,7 @@ class SimpleWindowGUI:
                     int(test, 16)
                 except ValueError:
                     self.label_command_send_text.set(u"Data values are not hexadecimal!")
-                    return
+                    return None, None, None
 
             # If we have an odd string, add a leading zero:
             if len(test) % 2 != 0:
@@ -612,14 +786,86 @@ class SimpleWindowGUI:
 
             if int(self.entry_box_count.get()) != len(a_list):
                 self.label_command_send_text.set(u"Number of registers to write do not match data length!")
-                return
+                return None, None, None
 
             # Block MB fields
             self.toggle_mb_entries('readonly')
-            self.execute_command('write', cmd_type, a_list)
+            return 'write', cmd_type, a_list
         else:
             self.toggle_mb_entries('readonly')
-            self.execute_command('read', cmd_type, None)
+            return 'read', cmd_type, None
+
+    # Event handler for clicking on the send request button
+    def on_button_send(self):
+
+        # Prevent eager users...
+        if self.connected is False:
+            self.label_connection_text.set(u"Not connected! connect first")
+            return
+
+        # If the periodic mode is enabled, then disable and remove lock
+        if self.periodic_enabled is True:
+            # Stop the timer
+
+            # Clear the flag
+            self.periodic_enabled = False
+
+            # Enable the MB entry boxes and re-draw button
+            self.toggle_mb_entries('normal')
+            self.button_send_command_text.set(u'SEND COMMAND ')
+
+            # And exit
+            return
+
+        # Re-set the TX/RX expected label
+        self.label_command_receive_text.set(u"Awaiting response/exception")
+        self.label_command_send_text.set(u"Awaiting command")
+
+        cmd, cmd_type, data = self.check_valid_mb_info()
+
+        if cmd is None:
+            return
+
+        self.execute_command(cmd, cmd_type, data)
+
+    # Auxiliary function to clear text entry boxes
+    def clear_boxes(self):
+        self.entry_box_reg.delete(0, tk.END)
+        self.entry_box_count.delete(0, tk.END)
+
+    # This event is triggered by a double click, user selects a register from the memory map
+    # and its content is updated in the command boxes
+    def on_double_click_list_cmd(self, event):
+        if not self.connected:
+            return
+
+        # Clear previous option
+        self.clear_boxes()
+        self.entry_box_unit.delete(0, tk.END)
+        self.entry_box_data.delete(0, tk.END)
+
+        # Get user input via event and populate box entries
+        widget = event.widget
+        selection = widget.curselection()
+        value = widget.get(selection[0])
+
+        self.entry_box_reg.insert(0, self.cmd_entries[value][0])
+        self.entry_box_count.insert(0, self.cmd_entries[value][1])
+        self.entry_box_unit.insert(0, self.cmd_entries[value][2])
+
+        if self.cmd_entries[value][3] and self.cmd_entries[value][3] != "None":
+            self.entry_box_data.insert(0, self.cmd_entries[value][3])
+
+        self.radio_input_from_val(self.cmd_entries[value][4])
+
+    # Auxiliary function to select the radio button option from a val
+    def radio_input_from_val(self, val):
+        if val == mb_cmd[0]:
+            self.cmd_type_input.select()
+        elif val == mb_cmd[1]:
+            self.cmd_type_holding.select()
+        elif val == mb_cmd[2]:
+            self.cmd_type_write.select()
 
     # This event is triggered by a double click, user selects a register from the memory map
     # and its content is updated in the command boxes
@@ -628,9 +874,9 @@ class SimpleWindowGUI:
             return
 
         # Clear previous option
-        self.entry_box_reg.delete(0, tk.END)
-        self.entry_box_count.delete(0, tk.END)
+        self.clear_boxes()
 
+        # Get user input via event
         widget = event.widget
         selection = widget.curselection()
         value = widget.get(selection[0])
@@ -639,10 +885,37 @@ class SimpleWindowGUI:
         self.entry_box_count.insert(0, self.mmap_entries[value][2])
 
         # If the register is an input/holding register, also select for the user
-        if self.mmap_entries[value][1] == mb_cmd[0]:
-            self.cmd_type_input.select()
-        else:
-            self.cmd_type_holding.select()
+        self.radio_input_from_val(self.mmap_entries[value][1])
+
+    # Auxiliary method that closes the pop-up window
+    def close_pop_up(self):
+        self.top.destroy()
+        self.toggle_mb_entries('normal')
+
+    # Creates the pop-up window for the user to save the command with a given name
+    def popup(self):
+        cmd, cmd_info, data = self.check_valid_mb_info()
+
+        if cmd is None:
+            return
+
+        # Test if the data box entry is empty, then replace by a None
+        data_field = "None"
+        if self.entry_box_data.get():
+            data_field = self.entry_box_data.get()
+
+        # Create the command string
+        cmd_in_string = "{0} {1} {2} {3} {4}\n".format(self.entry_box_reg.get(),
+                                                       self.entry_box_count.get(),
+                                                       self.entry_box_unit.get(),
+                                                       data_field,
+                                                       self.command_type.get())
+
+        self.w = PopUpWindow(self.master, cmd_in_string, self.list_cmd, self.cmd_entries)
+        self.master.wait_window(self.w.top)
+
+        # After the pop-up window has been destroyed, restore the entry boxes and lists
+        self.toggle_mb_entries('normal')
 
     # The functions below are meant only for clearing the text box content on a mouse click,
     # this could be optimized into a single function, this has to be done eventually :)

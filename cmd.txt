@@ -1,0 +1,6 @@
+# Simple plain text file to store commands
+# To manually add/erase commands, follow the structure below:
+# Command name : Register NumberOfRegisters MBServerID Data RequestType
+
+EXAMPLE_1 : 1 1 247 None input
+EXAMPLE_2 : 1 1 247 AA BB CC write

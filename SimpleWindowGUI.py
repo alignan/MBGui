@@ -273,6 +273,10 @@ class SimpleWindowGUI:
         # A periodic status
         self.periodic_enabled = False
 
+        # Offline mode
+        self.online_mode = tk.IntVar()
+        self.online_mode_check = tk.Checkbutton(self.frame, text="Offline Mode",  bg='white', variable=self.online_mode)
+
         # Initialize all windows class components
         self.initialize()
 
@@ -458,6 +462,9 @@ class SimpleWindowGUI:
         button_connect.grid(column=0, row=0, columnspan=2, sticky='EW')
         self.button_connect_text.set(u"CONNECT")
 
+        # Place the online mode checkbox, by default not checked
+        self.online_mode_check.grid(column=0, row=1, columnspan=2, sticky='W')
+
         # Place the store command button on my frame
         self.button_save.grid(column=7, row=10, columnspan=2, sticky='EW')
         self.button_save_text.set(u"SAVE COMMAND")
@@ -587,39 +594,51 @@ class SimpleWindowGUI:
         if self.connected:
             self.on_button_send()
 
+    # Auxiliary function to avoid repeating code
+    def set_connected_state(self):
+        self.label_connection_text.set(u"CONNECTED !")
+        self.connected = True
+        self.button_connect_text.set(u"DISCONNECT")
+
+        # Block the text entry
+        self.toggle_conn_entries('readonly')
+
+        # And enable the MB related ones
+        self.toggle_mb_entries('normal')
+
     # Default behaviour when pressing the CONNECT/DISCONNECT button to create a serial connection
     def on_button_connect(self):
         if self.connected is False:
-            # Check if any of the cells are empty
-            if self.entry_box_port.get() == "" or \
-               self.entry_box_parity.get() == "" or \
-               self.entry_box_baudrate.get() == "" or \
-               self.entry_box_bytesize.get() == "" or \
-               self.entry_box_stopbits.get() == "":
-                    self.label_connection_text.set(u"Invalid: cell missing!")
-                    return
+            if not self.online_mode.get():
+                # Check if any of the cells are empty
+                if self.entry_box_port.get() == "" or \
+                   self.entry_box_parity.get() == "" or \
+                   self.entry_box_baudrate.get() == "" or \
+                   self.entry_box_bytesize.get() == "" or \
+                   self.entry_box_stopbits.get() == "":
+                        self.label_connection_text.set(u"Invalid: cell missing!")
+                        return
 
-            self.label_connection_text.set(u"Connecting... !")
-            self.client = MB.create_port(self.entry_box_port.get(),
-                                         int(self.entry_box_baudrate.get()),
-                                         self.entry_box_parity.get(),
-                                         int(self.entry_box_stopbits.get()),
-                                         int(self.entry_box_bytesize.get()))
+                self.label_connection_text.set(u"Connecting... !")
+                self.client = MB.create_port(self.entry_box_port.get(),
+                                             int(self.entry_box_baudrate.get()),
+                                             self.entry_box_parity.get(),
+                                             int(self.entry_box_stopbits.get()),
+                                             int(self.entry_box_bytesize.get()))
 
-            if MB.connect(self.client) is True:
-                self.label_connection_text.set(u"CONNECTED !")
-                self.connected = True
-                self.button_connect_text.set(u"DISCONNECT")
-
-                # Block the text entry
-                self.toggle_conn_entries('readonly')
-
-                # And enable the MB related ones
-                self.toggle_mb_entries('normal')
+                if MB.connect(self.client) is True:
+                    self.set_connected_state()
+                else:
+                    self.label_connection_text.set(u"Failed to connect, check settings... !")
             else:
-                self.label_connection_text.set(u"Failed to connect, check settings... !")
+                self.set_connected_state()
         else:
-            MB.close(self.client)
+            # Wrap in a try/catch block in case use tangles with offline mode and leaves serial connection open
+            try:
+                MB.close(self.client)
+            except:
+                pass
+
             self.connected = False
             self.button_connect_text.set(u"CONNECT")
             self.label_connection_text.set(u"Awaiting connection!")

@@ -12,6 +12,7 @@ Currently supported:
 - Displays outgoing TX frame (bytes) with CRC appended
 - Displays Response/Exception information
 - Store/load MB commands from Menu
+- Added offline mode to be able to load and play with the memory map and command files without a connection
 
 Features missing:
 

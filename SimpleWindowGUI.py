@@ -52,7 +52,9 @@ from pymodbus.register_write_message import *
 from pymodbus.utilities import computeCRC
 
 # To read mmap.xml file
-import os, sys, platform
+import os
+import sys
+import platform
 import collections
 from xml.dom import minidom
 
@@ -201,6 +203,7 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
+
 
 # Class to build a simple GUI window
 class SimpleWindowGUI:

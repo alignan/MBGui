@@ -52,7 +52,7 @@ from pymodbus.register_write_message import *
 from pymodbus.utilities import computeCRC
 
 # To read mmap.xml file
-import os, sys
+import os, sys, platform
 import collections
 from xml.dom import minidom
 
@@ -68,10 +68,10 @@ ABOUT_INFO = "Silly tool put together by:\nAntonio Lignan, 2014\nPython Software
 VERSION_INFO = "Release version v1.0.0, https://github.com/alignan/MBGui"
 
 # Name of the default memory map XML file
-mmap_abs_path = os.path.dirname(os.path.abspath(__file__)) + "\mmap.xml"
+mmap_abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mmap.xml")
 
 # Name of the default command file
-cmd_abs_path = os.path.dirname(os.path.abspath(__file__)) + "\cmd.txt"
+cmd_abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cmd.txt")
 
 # Available type of MB request types
 mb_cmd = ['input', 'holding', 'write']
@@ -208,7 +208,8 @@ class SimpleWindowGUI:
         self.master = tk.Tk()
         self.master.title(title)
         self.frame = tk.Frame(self.master, borderwidth=5, bg='white')
-        self.master.iconbitmap(default=resource_path('transparent.ico'))
+        if platform.system() == 'Windows':
+            self.master.iconbitmap(default=resource_path('transparent.ico'))
 
         # Create this for a pop-up window
         self.top = None
@@ -307,10 +308,10 @@ class SimpleWindowGUI:
         file_menu = tk.Menu(menu_bar)
 
         menu_bar.add_cascade(label="Load", menu=file_menu)
-        menu_bar.add_cascade(label="About", command=self.display_about)
+        menu_bar.add_command(label="About", command=self.display_about)
 
-        file_menu.add_cascade(label="Memory Map...", command=self.load_memory_map)
-        file_menu.add_cascade(label="Stored Requests...", command=self.load_saved_requests)
+        file_menu.add_command(label="Memory Map...", command=self.load_memory_map)
+        file_menu.add_command(label="Stored Requests...", command=self.load_saved_requests)
 
         # Create an empty MB object, the constructor will be invoked at connection time
         self.client = "None"
@@ -601,7 +602,7 @@ class SimpleWindowGUI:
                                                                                       sticky='EW')
         self.list_mmap.grid(column=0, columnspan=3, row=15, sticky='WE')
         self.list_mmap.columnconfigure(0, weight=1)
-        self.list_mmap_scrollbar.grid(column=0, sticky='EW')
+        self.list_mmap_scrollbar.grid(column=3, sticky='EW')
         self.list_mmap.bind("<Double-Button-1>", self.on_double_click_list_mmap)
 
         self.checkbox_periodic_request.grid(column=0, row=11, columnspan=2, sticky='NW')
@@ -612,7 +613,7 @@ class SimpleWindowGUI:
                                                                                      sticky='EW')
         self.list_cmd.grid(column=3, columnspan=5, row=15, sticky='WE')
         self.list_cmd.columnconfigure(0, weight=1)
-        self.list_cmd_scrollbar.grid(column=0, sticky='EW')
+        self.list_cmd_scrollbar.grid(column=3, sticky='EW')
         self.list_cmd.bind("<Double-Button-1>", self.on_double_click_list_cmd)
 
         # Print instructions on the text box
